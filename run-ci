@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -euxo pipefail
+
+cargo fmt --all -- --check
+cargo build --all
+cargo test --all
+cargo deny check

@@ -1,0 +1,11 @@
+[package]
+name = "service"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+counter = { version = "0.1.0", path = "../counter" }
+network = { version = "0.1.0", path = "../network" }
+quickcheck = "1.0.3"
