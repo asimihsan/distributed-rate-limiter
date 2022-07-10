@@ -6,5 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-quiche = "0.14.0"
+byte-unit = "4.0.14"
+bytes = "1.1.0"
+s2n-quic = { version = "1.6.1", features = ["provider-tls-rustls", "hash_hasher", "zerocopy", "ring", "zerocopy-derive", "zeroize", "cuckoofilter"], default-features = false }
+thiserror = "1.0.31"
 tokio = { version = "1.19.2", features = ["full"] }

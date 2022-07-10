@@ -1,7 +1,8 @@
 [workspace]
 
 members = [
-    "bin/cli",
+    "bin/client",
+    "bin/server",
     "lib/counter",
     "lib/network",
     "lib/service",
