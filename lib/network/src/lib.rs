@@ -1,10 +1,16 @@
-use byte_unit::Byte;
+use byte_unit::{Byte, ByteUnit};
+use bytes::{Bytes, BytesMut};
+use futures::future::err;
+use futures::stream::{Stream, TryStream, TryStreamExt};
+use futures::{SinkExt, StreamExt};
 use s2n_quic::client::Connect;
 use s2n_quic::{Client, Server};
 use std::error::Error;
+use std::io::{BufRead, BufReader};
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufStream};
+use tokio_util::codec::{Framed, FramedRead, LengthDelimitedCodec};
 
 /// NOTE: this certificate is to be used for demonstration purposes only!
 pub static CERT_PEM: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../cert.pem"));
@@ -45,20 +51,27 @@ pub async fn server() -> Result<(), Box<dyn Error>> {
         // spawn a new task for the connection
         tokio::spawn(async move {
             eprintln!("Connection accepted from {:?}", connection.remote_addr());
-
-            while let Ok(Some(mut stream)) = connection.accept_bidirectional_stream().await {
+            while let Ok(Some(stream)) = connection.accept_bidirectional_stream().await {
                 // spawn a new task for the stream
                 tokio::spawn(async move {
-                    eprintln!("Stream opened from {:?}", stream.connection().remote_addr());
-
-                    // let mut transport = F
-
-                    // echo any data back to the stream
-                    while let Ok(Some(data)) = stream.receive().await {
-                        stream.send(data).await.expect("stream should be open");
+                    let remote_addr = stream.connection().remote_addr();
+                    eprintln!("Stream opened from {:?}", remote_addr);
+                    let stream = BufStream::new(stream);
+                    let codec = LengthDelimitedCodec::builder()
+                        .length_field_type::<u64>()
+                        .new_framed(stream);
+                    let mut codec_stream = codec.into_stream();
+                    while let Some(Ok(data)) = codec_stream.next().await {
+                        println!("data received: {:?}", data);
+                        codec_stream.send(data.freeze()).await.expect("stream should be open");
                     }
 
-                    eprintln!("stream task done for {:?}", stream.connection().remote_addr());
+                    // echo any data back to the stream
+                    // while let Ok(Some(data)) = stream.receive().await {
+                    //     stream.send(data).await.expect("stream should be open");
+                    // }
+
+                    eprintln!("stream task done for {:?}", remote_addr);
                 });
             }
 
@@ -128,17 +141,47 @@ pub async fn client() -> Result<(), Box<dyn Error>> {
 
     // open a new stream and split the receiving and sending sides
     let stream = connection.open_bidirectional_stream().await?;
-    let (mut receive_stream, mut send_stream) = stream.split();
+    let stream = BufStream::new(stream);
+
+    let codec = LengthDelimitedCodec::builder().length_field_type::<u64>().new_framed(stream);
+    let mut codec_stream = codec.into_stream();
+    let msg = vec![97; 2_000];
+    codec_stream.send(Bytes::from(msg)).await?;
+
+    // let (r, s) = codec_stream.split();
+    // let (mut receive_stream, mut send_stream) = stream.split();
 
     // spawn a task that copies responses from the server to stdout
     tokio::spawn(async move {
         let mut stdout = tokio::io::stdout();
-        let _ = tokio::io::copy(&mut receive_stream, &mut stdout).await;
-    });
+        loop {
+            println!("tick");
+            let resp = codec_stream.try_next().await;
+            match resp {
+                Ok(data) => match data {
+                    None => {
+                        println!("no data");
+                    }
+                    Some(data2) => {
+                        println!("data2: {:?}", data2);
+                    }
+                },
+                Err(err) => {
+                    println!("error: {:?}", err)
+                }
+            }
+        }
+    })
+    .await?;
+    //
+    // // copy data from stdin and send it to the server
+    // let stdin = tokio_stdin_stdout::stdin(0);
+    // let mut stdin = BufReader::new(stdin);
+    // for Ok(line) in stdin.lines() {
+    //     codec_stream.send(line.into()).await?;
+    // }
 
-    // copy data from stdin and send it to the server
-    let mut stdin = tokio::io::stdin();
-    tokio::io::copy(&mut stdin, &mut send_stream).await?;
+    // tokio::io::copy(&mut stdin, &mut codec_stream.into_stream()).await?;
 
     Ok(())
 

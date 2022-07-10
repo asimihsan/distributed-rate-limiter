@@ -6,8 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-compression = { version = "0.3.14", features = ["all-implementations", "zstd"] }
 byte-unit = "4.0.14"
 bytes = "1.1.0"
+futures = "0.3.21"
+prost = "0.10.4"
 s2n-quic = { version = "1.6.1", features = ["provider-tls-rustls", "hash_hasher", "zerocopy", "ring", "zerocopy-derive", "zeroize", "cuckoofilter"], default-features = false }
 thiserror = "1.0.31"
 tokio = { version = "1.19.2", features = ["full"] }
+tokio-stdin-stdout = "0.1.5"
+tokio-util = { version = "0.7.3", features = ["full"] }
+tower = { version = "0.4.13", features = ["full", "tokio", "tokio-stream"] }
